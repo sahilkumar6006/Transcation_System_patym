@@ -2,7 +2,7 @@ import mongoose from "mongoose";
 import {Bank} from "../Schema/bankSchema";
 import { Request, Response } from "express";
 
-const tranferFunds = async(req: Request, res: Response, next: unknown) => {{
+export const tranferFunds = async(req: Request, res: Response,) => {{
 
     //descreement the amount from the sender's account
     const senderAccount = await Bank.findByIdAndUpdate( 
@@ -20,6 +20,7 @@ const tranferFunds = async(req: Request, res: Response, next: unknown) => {{
         message: "Funds transferred successfully",
         senderAccount,
     });
+}
 }
 
 

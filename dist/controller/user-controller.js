@@ -12,60 +12,70 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.signin = exports.signUp = void 0;
+exports.signin = exports.signUp = exports.authenticateJWT = void 0;
 const index_js_1 = require("../Schema/index.js");
 const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const index_js_2 = require("../config/index.js");
-// username: String,
-// password: String,
-// firstName: String,
-// lastName: String
-const signUp = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const bankSchema_js_1 = require("../Schema/bankSchema.js");
+// JWT Auth Middleware
+const authenticateJWT = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).json({ error: 'Authorization header missing' });
+    }
+    const token = authHeader.split(' ')[1];
+    try {
+        const decoded = jsonwebtoken_1.default.verify(token, index_js_2.JWT_SECRET);
+        req.user = decoded;
+        next();
+    }
+    catch (err) {
+        return res.status(403).json({ error: 'Invalid signUp called' });
+    }
+};
+exports.authenticateJWT = authenticateJWT;
+const signUp = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { email, password, username, firstName, lastName } = req.body;
     try {
-        // Check if user already exists
         const existingUser = yield index_js_1.User.findOne({ email });
         if (existingUser) {
             return res.status(400).json({ error: 'User already exists' });
         }
-        // Create a new user
-        const hashpassword = jsonwebtoken_1.default.sign(password, index_js_2.JWT_SECRET); // Hash the password before saving (use a proper hashing function in production)
+        // In production, use bcrypt to hash passwords!
         const newUser = new index_js_1.User({
             email,
-            hashpassword,
+            password, // Store hashed password in production!
             username,
             firstName,
             lastName
         });
-        index_js_1.User.create(newUser);
-        // Save the user to the database
-        // await newUser.save(); // Uncomment this line if using Mongoose
         yield newUser.save();
+        const userId = newUser._id;
+        yield bankSchema_js_1.Bank.create({
+            userId,
+            balance: 1 + Math.random() * 10000
+        });
         res.status(201).json({ message: 'User signed up successfully', email });
     }
     catch (error) {
+        console.error('SignUp Error:', error);
         res.status(500).json({ error: 'Internal server error' });
     }
 });
 exports.signUp = signUp;
-const signin = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+const signin = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { email, password } = req.body;
     try {
-        // Find the user by email
-        const user = yield index_js_1.User.find({ email, password });
+        const user = yield index_js_1.User.findOne({ email, password }); // Use hashed password in production!
         if (!user) {
             return res.status(400).json({ error: 'Invalid email or password' });
         }
-        // Verify the password (use a proper hashing function in production)
-        const isPasswordValid = jsonwebtoken_1.default.verify(password, index_js_2.JWT_SECRET);
-        if (!isPasswordValid) {
-            return res.status(400).json({ error: 'Invalid email or password' });
-        }
-        // Generate a JWT token (optional, if you want to use JWT for authentication)
+        // Generate JWT token
+        const token = jsonwebtoken_1.default.sign({ userId: user._id, email: user.email }, index_js_2.JWT_SECRET, { expiresIn: '1h' });
+        res.status(200).json({ message: 'User signed in successfully', email, token, });
     }
     catch (error) {
         res.status(500).json({ error: 'Internal server error' });
     }
-    res.status(200).json({ message: 'User signed in successfully', email });
 });
 exports.signin = signin;
